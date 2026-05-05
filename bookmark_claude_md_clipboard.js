@@ -89,13 +89,15 @@ javascript:(async function() {
     /* ── iterate over turns ── */
     const parts = [];
     for (const { label, btn, attachments } of turns) {
+      /* Snapshot the current clipboard so we can detect when it changes */
+      let prevText;
+      try { prevText = await navigator.clipboard.readText(); } catch { prevText = ''; }
+
       /* Click the copy button – it writes Markdown to the clipboard */
       btn.click();
 
-      /* Wait for the async clipboard write to complete */
-      await delay(400);
-
-      const text = await navigator.clipboard.readText();
+      /* Poll until clipboard content changes (or timeout) */
+      const text = await waitForClipboardChange(prevText, 2000);
 
       let entry = `${label}\n\n`;
       if (attachments.length > 0) {
@@ -123,7 +125,15 @@ javascript:(async function() {
     alert('claude bookmark (md/clipboard): ' + e.message);
   }
 
-  function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  async function waitForClipboardChange(prevText, timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise(r => setTimeout(r, 50));
+      try {
+        const current = await navigator.clipboard.readText();
+        if (current !== prevText) return current;
+      } catch { /* clipboard busy; retry */ }
+    }
+    throw new Error('Timed out waiting for clipboard update');
   }
 })();
