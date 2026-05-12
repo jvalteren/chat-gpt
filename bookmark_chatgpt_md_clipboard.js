@@ -1,5 +1,20 @@
 javascript:(async function() {
   try {
+    function xpathAll(expr, ctx) {
+      const result = document.evaluate(
+        expr,
+        ctx || document,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      );
+      const nodes = [];
+      for (let i = 0; i < result.snapshotLength; i++) {
+        nodes.push(result.snapshotItem(i));
+      }
+      return nodes;
+    }
+
     /* ── title & slug ── */
     const title = document.querySelector('[data-active] span[dir="auto"]')?.textContent?.trim()
                ?? document.querySelector('ol li a.bg-gray-100')?.textContent?.trim()
@@ -37,6 +52,11 @@ javascript:(async function() {
       const section = btn.closest('[data-turn]');
       const role    = section?.dataset?.turn ?? 'unknown';
       const label   = role === 'user' ? '**You:**' : '**ChatGPT:**';
+      const attachments = role === 'user'
+        ? xpathAll('.//div[contains(@class, "group/file-tile")]/@aria-label', section)
+            .map(node => node.value)
+            .filter(Boolean)
+        : [];
 
       /* Click the ChatGPT copy button – it writes Markdown to the clipboard */
       btn.click();
@@ -45,7 +65,12 @@ javascript:(async function() {
       await delay(400);
 
       const text = await navigator.clipboard.readText();
-      parts.push(`${label}\n\n${text}`);
+      let entry = `${label}\n\n`;
+      if (attachments.length > 0) {
+        entry += `*Attachments: ${attachments.join(', ')}*\n\n`;
+      }
+      entry += text;
+      parts.push(entry);
     }
 
     /* ── assemble document ── */
